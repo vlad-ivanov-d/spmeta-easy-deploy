@@ -8,6 +8,7 @@ using SPMeta2.Services;
 using SPMeta2.Syntax.Default;
 using System;
 using System.Collections.ObjectModel;
+using System.Linq;
 
 namespace SPF.M2
 {
@@ -49,9 +50,22 @@ namespace SPF.M2
         {
             BeforeDeployModel(Incremental, x =>
             {
+                PropertyBagValue incrementalProvisionModelIdProperty = model.PropertyBag.FirstOrDefault(currentPropertyValue =>
+                        currentPropertyValue.Name == "_sys.IncrementalProvision.PersistenceStorageModelId");
+                if (Incremental && incrementalProvisionModelIdProperty == null)
+                {
+                    new SystemException("Please set incremental provision model id");
+                }
+
                 Console.WriteLine("Provisioning preparing model");
-                x.DeployModel(SPMeta2.CSOM.ModelHosts.WebModelHost.FromClientContext(Ctx), model.GetContainersModel());
+                var preparingModel = model.GetContainersModel();
+                if (incrementalProvisionModelIdProperty != null)
+                {
+                    preparingModel.SetIncrementalProvisionModelId("Preparing: " + incrementalProvisionModelIdProperty.Value);
+                }
+                x.DeployModel(SPMeta2.CSOM.ModelHosts.WebModelHost.FromClientContext(Ctx), preparingModel);
                 Console.WriteLine();
+
                 Console.WriteLine("Provisioning main model");
                 x.DeployModel(SPMeta2.CSOM.ModelHosts.WebModelHost.FromClientContext(Ctx), model);
             });
@@ -61,15 +75,28 @@ namespace SPF.M2
         {
             BeforeDeployModel(Incremental, x =>
             {
+                PropertyBagValue incrementalProvisionModelIdProperty = model.PropertyBag.FirstOrDefault(currentPropertyValue =>
+                        currentPropertyValue.Name == "_sys.IncrementalProvision.PersistenceStorageModelId");
+                if (Incremental && incrementalProvisionModelIdProperty == null)
+                {
+                    new SystemException("Please set incremental provision model id");
+                }
+
                 Console.WriteLine("Provisioning preparing model");
+                var preparingModel = model.GetContainersModel();
+                if (incrementalProvisionModelIdProperty != null)
+                {
+                    preparingModel.SetIncrementalProvisionModelId("Preparing: " + incrementalProvisionModelIdProperty.Value);
+                }
+                x.DeployModel(SPMeta2.CSOM.ModelHosts.SiteModelHost.FromClientContext(Ctx), preparingModel);
                 Console.WriteLine();
-                x.DeployModel(SPMeta2.CSOM.ModelHosts.WebModelHost.FromClientContext(Ctx), model.GetContainersModel());
+
                 Console.WriteLine("Provisioning main model");
-                Console.WriteLine();
                 x.DeployModel(SPMeta2.CSOM.ModelHosts.SiteModelHost.FromClientContext(Ctx), model);
             });
 
         }
+
         private static void BeforeDeployModel(bool Incremental, Action<CSOMProvisionService> Deploy)
         {
             var StartedDate = DateTime.Now;
@@ -92,7 +119,6 @@ namespace SPF.M2
             var TotalHrs = Math.Round(DateDiff.TotalHours);
             var TotalMinutes = Math.Round(DateDiff.TotalMinutes);
             var TotalSeconds = Math.Round(DateDiff.TotalSeconds);
-
             if (TotalHrs == 0)
             {
                 if (TotalMinutes == 0)
@@ -141,7 +167,7 @@ namespace SPF.M2
            }));
         }
 
-        private static ModelNode GetContainersModel(this ModelNode model)
+        private static WebModelNode GetContainersModel(this WebModelNode model)
         {
             WebModelNode containersModel = SPMeta2Model.NewWebModel();
 
@@ -157,6 +183,23 @@ namespace SPF.M2
                 if (modelNode.Value.GetType() == typeof(ListDefinition))
                 {
                     containersModel.AddList((ListDefinition)modelNode.Value);
+                }
+            }
+
+            return containersModel;
+        }
+
+        private static SiteModelNode GetContainersModel(this SiteModelNode model)
+        {
+            SiteModelNode containersModel = SPMeta2Model.NewSiteModel();
+
+            foreach (ModelNode modelNode in model.ChildModels)
+            {
+                if (modelNode.Value.GetType() == typeof(WebDefinition))
+                {
+                    containersModel.AddWeb((WebDefinition)modelNode.Value, currentWeb => {
+                        currentWeb.GetWebContainersModel(modelNode.ChildModels);
+                    });
                 }
             }
 
