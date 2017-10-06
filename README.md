@@ -1,6 +1,6 @@
 # SPF.SPMeta2.Deploy
 ## Why it's useful?
-1. Deploy SPMeta2 models becomes as simple as posible
+1. SPMeta2 models provisioning becomes as simple as posible
 2. No any SharePoint issues with Lookup fields, so you can use one model
 3. Console ouput for provisioning process
 
